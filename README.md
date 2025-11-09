@@ -118,21 +118,6 @@ zksnark.py
 # Launch application
 python midnight-pqc-backend.py
 ```
-
-**Access:** http://localhost:5000
-
-### Docker Deployment
-
-```bash
-# Start full stack
-docker-compose up -d
-
-# View logs
-docker-compose logs -f backend
-```
-
-**Access:** http://localhost
-
 ---
 
 ## Implementation Examples
