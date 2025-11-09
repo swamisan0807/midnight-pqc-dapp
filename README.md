@@ -112,11 +112,11 @@ cd midnight-pqc-dapp
 pip install -r requirements-production.txt
 
 # Verify cryptographic modules
-python crypto/kyber_pqc.py
-python crypto/zksnark.py
+kyber_pqc.py
+zksnark.py
 
 # Launch application
-python app_production.py
+python midnight-pqc-backend.py
 ```
 
 **Access:** http://localhost:5000
