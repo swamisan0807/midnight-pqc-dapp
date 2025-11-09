@@ -289,17 +289,15 @@ Private operations on public infrastructure through PQC encryption and zero-know
 ```
 midnight-pqc-dapp/
 ├── app_production.py          # Flask application
-├── crypto/
-│   ├── kyber_pqc.py          # Kyber-512 implementation
-│   └── zksnark.py            # ZK-SNARK proofs
-├── database/
-│   ├── models.py             # SQLAlchemy models
-│   └── init.sql              # Schema
-├── templates/
-│   └── midnight-pqc-unified-app-fixed.html
+├── kyber_pqc.py          # Kyber-512 implementation
+└── zksnark.py            # ZK-SNARK proofs
+└── midnight-pqc-unified-app.html
+└── midnight-pqc-backend.py
+└── start.sh
 ├── requirements-production.txt
 ├── docker-compose.yml
 └── Dockerfile
+└── README.md
 ```
 
 ---
