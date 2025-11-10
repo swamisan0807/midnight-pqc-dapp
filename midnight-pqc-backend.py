@@ -1,10 +1,10 @@
 """
-Midnight PQC DApp - Backend (FIXED VERSION)
-All Issues Resolved:
-1. Credential sync tracking per identity
-2. One vote per user ID per proposal (not credential ID)
-3. Document decryption with access request tracking
-4. All 3 requirements properly implemented
+Midnight PQC DApp - Backend (ENHANCED VERSION)
+Key Fixes:
+1. ✅ One proposal per User ID (not credential ID)
+2. ✅ Owner can grant/approve document access requests
+3. ✅ One vote per USER_ID maintained
+4. ✅ Document decryption with access control maintained
 """
 
 from flask import Flask, jsonify, request, send_from_directory
@@ -15,7 +15,7 @@ import os, secrets, hashlib, logging, json
 
 # --------------------------------------------
 # Setup
-# --------------------------------------------a
+# --------------------------------------------
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 logging.basicConfig(level=logging.INFO)
@@ -73,6 +73,7 @@ class Document:
 identities = {}  # credential_id -> Identity
 user_credentials = {}  # user_id -> [credential_ids]
 proposals = {}  # proposal_id -> Proposal
+proposal_owners = {}  # user_id -> proposal_id (ONE proposal per user!)
 votes = {}  # proposal_id -> {user_id: vote_data}
 documents = {}  # document_id -> Document
 access_requests = {}  # request_id -> request_data
@@ -102,8 +103,6 @@ def encrypt_content_pqc(content: str, key: str):
 
 def decrypt_content_pqc(encrypted_hash: str, key: str):
     """Decrypt content (simulated - in real app, this would use actual decryption)"""
-    # In a real implementation, this would decrypt the content
-    # For demo, we'll return a marker showing it's "decrypted"
     return f"[DECRYPTED CONTENT - Hash: {encrypted_hash[:20]}...]"
 
 # --------------------------------------------
@@ -278,15 +277,18 @@ def get_sync_status():
     })
 
 # --------------------------------------------
-# Voting APIs (FIXED: One vote per USER_ID)
+# Voting APIs (FIX #1: One proposal per USER_ID, One vote per USER_ID)
 # --------------------------------------------
 @app.route('/api/voting/create-proposal', methods=['POST'])
 def create_proposal():
-    """Create a new voting proposal"""
+    """
+    Create a new voting proposal
+    FIX: ONE PROPOSAL PER USER_ID
+    """
     data = request.json
     title = data.get('title')
     description = data.get('description')
-    creator_user_id = data.get('creator_user_id')  # NOW REQUIRED
+    creator_user_id = data.get('creator_user_id')
     
     if not all([title, description, creator_user_id]):
         return jsonify({"success": False, "error": "title, description, and creator_user_id required"}), 400
@@ -294,6 +296,20 @@ def create_proposal():
     # Verify creator has a valid credential
     if creator_user_id not in user_credentials:
         return jsonify({"success": False, "error": "Creator must have a valid credential"}), 400
+    
+    # ✅ FIX #1: CHECK IF USER ALREADY HAS A PROPOSAL
+    if creator_user_id in proposal_owners:
+        existing_proposal_id = proposal_owners[creator_user_id]
+        existing_proposal = proposals[existing_proposal_id]
+        return jsonify({
+            "success": False,
+            "error": "You can only create ONE proposal per User ID",
+            "existing_proposal": {
+                "proposal_id": existing_proposal_id,
+                "title": existing_proposal.title,
+                "created_at": existing_proposal.created_at
+            }
+        }), 400
 
     proposal_id = f"PROP-{secrets.token_hex(8).upper()}"
     proposal = Proposal(
@@ -312,10 +328,15 @@ def create_proposal():
     )
     
     proposals[proposal_id] = proposal
-    votes[proposal_id] = {}  # Initialize vote tracking for this proposal
+    proposal_owners[creator_user_id] = proposal_id  # ✅ Track ownership
+    votes[proposal_id] = {}
     
     logger.info(f"Created proposal {proposal_id} by user {creator_user_id}")
-    return jsonify({"success": True, "proposal": asdict(proposal)})
+    return jsonify({
+        "success": True,
+        "proposal": asdict(proposal),
+        "message": "Proposal created successfully. Note: You can only create ONE proposal per User ID."
+    })
 
 @app.route('/api/voting/list-proposals', methods=['GET'])
 def list_proposals():
@@ -327,12 +348,12 @@ def list_proposals():
 
 @app.route('/api/voting/cast-vote', methods=['POST'])
 def cast_vote():
-    """Cast a vote - FIXED: One vote per USER_ID per proposal"""
+    """Cast a vote - One vote per USER_ID per proposal"""
     data = request.json
     proposal_id = data.get('proposal_id')
     vote_choice = data.get('vote')
-    voter_user_id = data.get('voter_user_id')  # NOW using user_id instead of credential_id
-    voter_credential_id = data.get('voter_credential_id')  # Still need credential for verification
+    voter_user_id = data.get('voter_user_id')
+    voter_credential_id = data.get('voter_credential_id')
 
     if not all([proposal_id, vote_choice, voter_user_id, voter_credential_id]):
         return jsonify({"success": False, "error": "Missing required fields"}), 400
@@ -444,7 +465,7 @@ def check_if_voted():
     })
 
 # --------------------------------------------
-# Document Collaboration APIs (ENHANCED with Decryption)
+# Document Collaboration APIs (FIX #2: Owner Grant Access)
 # --------------------------------------------
 @app.route('/api/documents/create', methods=['POST'])
 def create_document():
@@ -550,7 +571,10 @@ def share_document():
 
 @app.route('/api/documents/request-access', methods=['POST'])
 def request_document_access():
-    """Request access to a document (creates access request)"""
+    """
+    Request access to a document (creates access request)
+    FIX #2: This creates a request that the owner can approve/grant
+    """
     data = request.json
     doc_id = data.get('document_id')
     requester_id = data.get('requester_id')
@@ -585,7 +609,9 @@ def request_document_access():
         "requester_user_id": requester.user_id,
         "owner_id": document.owner_id,
         "status": "pending",
-        "created_at": datetime.now().isoformat()
+        "created_at": datetime.now().isoformat(),
+        "updated_at": datetime.now().isoformat(),
+        "reviewed_by": None
     }
     
     access_requests[request_id] = access_request
@@ -593,7 +619,121 @@ def request_document_access():
     logger.info(f"Access request {request_id} created for document {doc_id}")
     return jsonify({
         "success": True,
-        "message": "Access request created",
+        "message": "Access request created. Waiting for owner approval.",
+        "access_request": access_request
+    })
+
+@app.route('/api/documents/grant-access', methods=['POST'])
+def grant_document_access():
+    """
+    FIX #2: Owner grants/approves an access request
+    """
+    data = request.json
+    request_id = data.get('request_id')
+    owner_credential_id = data.get('owner_credential_id')
+    access_level = data.get('access_level', 'read')
+    
+    if not all([request_id, owner_credential_id]):
+        return jsonify({"success": False, "error": "Missing required fields"}), 400
+    
+    if request_id not in access_requests:
+        return jsonify({"success": False, "error": "Access request not found"}), 404
+    
+    access_request = access_requests[request_id]
+    doc_id = access_request['document_id']
+    
+    if doc_id not in documents:
+        return jsonify({"success": False, "error": "Document not found"}), 404
+    
+    document = documents[doc_id]
+    
+    # ✅ VERIFY THAT THE REQUESTER IS THE DOCUMENT OWNER
+    if document.owner_id != owner_credential_id:
+        return jsonify({
+            "success": False,
+            "error": "Only the document owner can grant access"
+        }), 403
+    
+    # Check if request is already processed
+    if access_request['status'] != 'pending':
+        return jsonify({
+            "success": False,
+            "error": f"Request already {access_request['status']}"
+        }), 400
+    
+    # ✅ GRANT ACCESS
+    requester_id = access_request['requester_id']
+    
+    if requester_id not in document.collaborators:
+        document.collaborators.append(requester_id)
+    
+    document.access_levels[requester_id] = access_level
+    document.updated_at = datetime.now().isoformat()
+    
+    # Update access request status
+    access_request['status'] = 'approved'
+    access_request['updated_at'] = datetime.now().isoformat()
+    access_request['reviewed_by'] = owner_credential_id
+    access_request['granted_access_level'] = access_level
+    
+    logger.info(f"Access granted: {request_id} for document {doc_id} with {access_level} access")
+    
+    return jsonify({
+        "success": True,
+        "message": f"Access granted successfully with {access_level} access",
+        "access_request": access_request,
+        "document_id": doc_id,
+        "requester_id": requester_id,
+        "access_level": access_level
+    })
+
+@app.route('/api/documents/deny-access', methods=['POST'])
+def deny_document_access():
+    """
+    Owner denies an access request
+    """
+    data = request.json
+    request_id = data.get('request_id')
+    owner_credential_id = data.get('owner_credential_id')
+    
+    if not all([request_id, owner_credential_id]):
+        return jsonify({"success": False, "error": "Missing required fields"}), 400
+    
+    if request_id not in access_requests:
+        return jsonify({"success": False, "error": "Access request not found"}), 404
+    
+    access_request = access_requests[request_id]
+    doc_id = access_request['document_id']
+    
+    if doc_id not in documents:
+        return jsonify({"success": False, "error": "Document not found"}), 404
+    
+    document = documents[doc_id]
+    
+    # Verify that the requester is the document owner
+    if document.owner_id != owner_credential_id:
+        return jsonify({
+            "success": False,
+            "error": "Only the document owner can deny access"
+        }), 403
+    
+    # Check if request is already processed
+    if access_request['status'] != 'pending':
+        return jsonify({
+            "success": False,
+            "error": f"Request already {access_request['status']}"
+        }), 400
+    
+    # Deny access
+    access_request['status'] = 'denied'
+    access_request['updated_at'] = datetime.now().isoformat()
+    access_request['reviewed_by'] = owner_credential_id
+    
+    logger.info(f"Access denied: {request_id} for document {doc_id}")
+    
+    return jsonify({
+        "success": True,
+        "message": "Access request denied",
         "access_request": access_request
     })
 
@@ -626,14 +766,14 @@ def decrypt_document():
     access_level = document.access_levels.get(requester_id, "none")
     
     # "Decrypt" the content (in real app, would use actual decryption)
-    decrypted_content = document.encrypted_content  # For demo, return original
+    decrypted_content = document.encrypted_content
     
     logger.info(f"Document {doc_id} decrypted by {requester_id}")
     return jsonify({
         "success": True,
         "document": {
             "document_id": document.document_id,
-            "document_number": document.document_id,  # For display
+            "document_number": document.document_id,
             "title": document.title,
             "decrypted_content": decrypted_content,
             "encrypted_content_hash": document.encrypted_content_hash,
@@ -680,6 +820,27 @@ def list_access_requests():
         "access_requests": list(access_requests.values())
     })
 
+@app.route('/api/documents/access-requests/pending/<owner_id>', methods=['GET'])
+def list_pending_requests_for_owner(owner_id):
+    """
+    List pending access requests for a specific document owner
+    """
+    if owner_id not in identities:
+        return jsonify({"success": False, "error": "Invalid owner ID"}), 400
+    
+    # Find all pending requests for documents owned by this credential
+    pending_requests = []
+    for request in access_requests.values():
+        if request['owner_id'] == owner_id and request['status'] == 'pending':
+            pending_requests.append(request)
+    
+    return jsonify({
+        "success": True,
+        "owner_id": owner_id,
+        "pending_requests": pending_requests,
+        "count": len(pending_requests)
+    })
+
 # --------------------------------------------
 # System Status
 # --------------------------------------------
@@ -697,12 +858,13 @@ def system_status():
             "total_votes": sum(len(v) for v in votes.values()),
             "total_documents": len(documents),
             "total_access_requests": len(access_requests),
+            "pending_access_requests": len([r for r in access_requests.values() if r['status'] == 'pending']),
             "synced_credentials": len(cardano_sync_status["synced_credentials"])
         },
         "features": {
             "identity_tools": "enabled",
-            "voting_system": "enabled",
-            "document_collaboration": "enabled",
+            "voting_system": "enabled - ONE PROPOSAL PER USER ID",
+            "document_collaboration": "enabled - OWNER APPROVAL REQUIRED",
             "cardano_integration": "enabled"
         }
     })
@@ -727,21 +889,21 @@ def serve_frontend():
 # Run Server
 # --------------------------------------------
 if __name__ == '__main__':
-    print("\n" + "="*70)
-    print("🌙 Midnight PQC DApp - FIXED Backend Server")
-    print("="*70)
-    print("\nFixes Applied:")
-    print("  ✓ Issue #1: Credential sync tracking per identity")
-    print("  ✓ Issue #2: One vote per USER_ID (not credential_id)")
-    print("  ✓ Issue #3: Document decryption with access requests")
-    print("  ✓ Issue #4: All 3 requirements properly themed")
+    print("\n" + "="*80)
+    print("🌙 Midnight PQC DApp - ENHANCED Backend Server")
+    print("="*80)
+    print("\n✅ KEY FIXES APPLIED:")
+    print("  1. ONE PROPOSAL PER USER_ID - Each user can only create one proposal")
+    print("  2. OWNER GRANT ACCESS - Document owners must approve access requests")
+    print("  3. One vote per USER_ID (not credential_id)")
+    print("  4. Document decryption with proper access control")
     print("\nFeatures:")
     print("  ✓ Privacy-Enhancing Identity Tools (Kyber-512 PQC)")
     print("  ✓ Secure Community Voting (ZK-SNARKs)")
     print("  ✓ Confidential Data Collaboration (E2E Encryption)")
     print("  ✓ Real-Time Cardano Blockchain Integration")
-    print("="*70)
+    print("="*80)
     print(f"\n🚀 Server starting on http://localhost:5000\n")
-    print("="*70 + "\n")
+    print("="*80 + "\n")
     
     app.run(host='0.0.0.0', port=5000, debug=True)
