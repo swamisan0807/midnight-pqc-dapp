@@ -6,12 +6,12 @@
 Flask==3.0.0
 flask-cors==4.0.0
 gunicorn==21.2.0
-bplib
+
 # ============================================
 # Real Post-Quantum Cryptography
 # ============================================
 # Kyber-512 implementation
-pqcrypto==0.3.4
+pqcrypto==0.1.6
 # Alternative if pqcrypto has issues
 cryptography==41.0.7
 
@@ -21,7 +21,7 @@ cryptography==41.0.7
 # For real ZK-SNARK implementations
 py-ecc==6.0.0
 # Alternative ZK library
-zksk==0.0.2
+zksk==1.0.1
 
 # ============================================
 # Database & ORM
