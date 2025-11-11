@@ -21,7 +21,7 @@ cryptography==41.0.7
 # For real ZK-SNARK implementations
 py-ecc==6.0.0
 # Alternative ZK library
-zksk==1.0.1
+zksk==0.0.2
 
 # ============================================
 # Database & ORM
