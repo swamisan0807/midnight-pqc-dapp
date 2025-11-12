@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # PostgreSQL Database
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: midnight-pqc-db
+    environment:
+      POSTGRES_DB: midnight_pqc
+      POSTGRES_USER: midnight
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secure_password_change_me}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - midnight-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U midnight"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # Redis Cache
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: midnight-pqc-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_password_change_me}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - midnight-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ==========================================
+  # Backend Application
+  # ==========================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: midnight-pqc-backend
+    environment:
+      - DATABASE_URL=postgresql://midnight:${DB_PASSWORD:-secure_password_change_me}@postgres:5432/midnight_pqc
+      - REDIS_URL=redis://:{REDIS_PASSWORD:-redis_password_change_me}@redis:6379/0
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-me}
+      - CARDANO_NETWORK=preprod
+      - MIDNIGHT_RPC_URL=${MIDNIGHT_RPC_URL:-https://rpc.preprod.midnight.network}
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./app_production.py:/app/app_production.py
+      - ./crypto:/app/crypto
+      - ./database:/app/database
+    networks:
+      - midnight-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==========================================
+  # Nginx Reverse Proxy
+  # ==========================================
+  nginx:
+    image: nginx:alpine
+    container_name: midnight-pqc-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - backend
+    networks:
+      - midnight-network
+    restart: unless-stopped
+
+# ==========================================
+# Volumes
+# ==========================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ==========================================
+# Networks
+# ==========================================
+networks:
+  midnight-network:
+    driver: bridge
