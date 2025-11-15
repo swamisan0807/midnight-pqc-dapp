@@ -1,5 +1,4 @@
 # Midnight PQC DApp - Production Requirements
-# FIXED for Render.com deployment - Python 3.13 + OpenSSL 3.x compatible
 
 # ============================================
 # Core Framework
@@ -12,7 +11,7 @@ gunicorn==21.2.0
 # Real Post-Quantum Cryptography
 # ============================================
 # Kyber-512 implementation
-pqcrypto==0.3.4
+pqcrypto==0.1.6
 # Alternative if pqcrypto has issues
 cryptography==41.0.7
 
@@ -21,9 +20,8 @@ cryptography==41.0.7
 # ============================================
 # For real ZK-SNARK implementations
 py-ecc==6.0.0
-
-# FIXED: zksk without bplib dependency (works on Python 3.13 + OpenSSL 3.x)
-git+https://github.com/ait-crypto/zksk_without_pairings
+# Alternative ZK library
+zksk==1.0.1
 
 # ============================================
 # Database & ORM
