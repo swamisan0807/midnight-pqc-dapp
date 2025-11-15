@@ -11,7 +11,7 @@ gunicorn==21.2.0
 # Real Post-Quantum Cryptography
 # ============================================
 # Kyber-512 implementation
-pqcrypto==0.1.6
+pqcrypto==0.3.4
 # Alternative if pqcrypto has issues
 cryptography==41.0.7
 
