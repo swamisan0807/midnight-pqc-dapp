@@ -1,4 +1,5 @@
-# Midnight PQC DApp - Production Requirements (FIXED)
+# Midnight PQC DApp - Production Requirements
+# FIXED for Render.com deployment - Python 3.13 + OpenSSL 3.x compatible
 
 # ============================================
 # Core Framework
@@ -21,16 +22,8 @@ cryptography==41.0.7
 # For real ZK-SNARK implementations
 py-ecc==6.0.0
 
-# FIXED: Install zksk from GitHub instead of PyPI
-# The PyPI version (1.0.1) is outdated and has dependency issues
-# Option 1: Install from official repo (recommended)
-git+https://github.com/spring-epfl/zksk
-
-# Option 2: If you have pairing issues, use the fork without bplib
-# git+https://github.com/ait-crypto/zksk_without_pairings
-
-# Option 3: Alternative - NoKnow for password-based ZK proofs
-# noknow==0.3.1
+# FIXED: zksk without bplib dependency (works on Python 3.13 + OpenSSL 3.x)
+git+https://github.com/ait-crypto/zksk_without_pairings
 
 # ============================================
 # Database & ORM
