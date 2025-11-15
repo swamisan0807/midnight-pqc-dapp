@@ -24,7 +24,7 @@ COPY app_production.py .
 COPY crypto/ ./crypto/
 COPY database/ ./database/
 COPY contracts/ ./contracts/
-COPY midnight-pqc-unified-app-fixed.html .
+COPY midnight-pqc-unified-app.html .
 
 # Create logs directory
 RUN mkdir -p /app/logs
