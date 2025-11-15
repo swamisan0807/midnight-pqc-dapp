@@ -1,5 +1,5 @@
 # Midnight PQC DApp - Production Requirements
-
+pip install --upgrade pip
 # ============================================
 # Core Framework
 # ============================================
