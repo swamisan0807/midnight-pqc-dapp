@@ -16,7 +16,7 @@ A production-grade privacy platform addressing blockchain transparency challenge
 ## Overview
 
 **Challenge:** Public blockchain transparency compromises privacy across three critical areas:
-- **Identity:** On-chain addresses link all user activities
+- **Identity:** Off-chain addresses link all user activities
 - **Voting:** Public votes enable coercion and manipulation
 - **Data:** Sensitive information remains vulnerable to quantum computing threats
 
